@@ -1,0 +1,4 @@
+modbus_tk
+aioesphomeapi
+asyncio
+dotenv
