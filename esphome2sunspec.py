@@ -30,6 +30,10 @@ class SunspecServer(object):
         self.server = None
         self.databank = Databank()
         self._setup_slaves_and_registers()
+        self.esphome_services = {}
+        self.esphome_client = None
+        self.esphome_connected = False
+        self.esphome_reconnect_task = None
 
     def _setup_slaves_and_registers(self):
         # Voeg de slave toe aan de databank met de slave ID
@@ -62,7 +66,7 @@ class SunspecServer(object):
         set_regs(40085, [0]) # Scale factor power
         set_regs(40087, [0xFFFE]) # Scale factor frequency
         set_regs(40096, [0]) # Scale factor energy
-        set_regs(40108, [4]) # State = Running
+        set_regs(40108, [1]) # State = Off (1) / State = Running (4)
 
         # Model 120, Nameplate ratings - Basiswaarden
         set_regs(40122, [120]) # Sunspec model id
@@ -83,19 +87,27 @@ class SunspecServer(object):
         slave = self.databank.get_slave(self.slave_id)
         slave.set_values('hr', address, [value,])
 
-    async def connect_esphome(self):
-        print(os.getenv('ESP_HOST'))
+    async def _connect_esphome_internal(self):
         self.esphome_client = APIClient(os.getenv('ESP_HOST'), os.getenv('ESP_PORT'), os.getenv('ESP_API_PASSWORD'), noise_psk=os.getenv('ESP_API_ENCRYPTION'))
         try:
             await self.esphome_client.connect(login=True)
             log.info("Verbonden met ESPHome")
             entities = await self.esphome_client.list_entities_services()
-            for entity in entities[0]:
-                if hasattr(entity, 'name'):
-                    self.esphome_services[entity.key] = entity.object_id
+            self.esphome_services = {entity.key: entity.object_id for entity in entities[0] if hasattr(entity, 'name')}
             self.esphome_client.subscribe_states(self.esphome_state_update)
+            self.esphome_connected = True
+            self.update_modbus_register(40108, [4,]) # State = Running
         except Exception as e:
             log.error(f"Fout bij verbinden met ESPHome: {e}")
+            self.esphome_connected = False
+            self.update_modbus_register(40108, [1,]) # State = Off
+
+    async def manage_esphome_connection(self):
+        while True:
+            if not self.esphome_connected:
+                log.info("Poging tot verbinden met ESPHome...")
+                await self._connect_esphome_internal()
+            await asyncio.sleep(10) # Controleer de verbinding elke 10 seconden
 
     def esphome_state_update(self, state):
         service_name = self.esphome_services.get(state.key)
@@ -132,8 +144,9 @@ class SunspecServer(object):
 
 async def main():
     sunspec_server = SunspecServer()
-    await sunspec_server.connect_esphome()
+    await sunspec_server._connect_esphome_internal()
     sunspec_server.start_modbus_server()
+    sunspec_server.esphome_reconnect_task = asyncio.create_task(sunspec_server.manage_esphome_connection())
 
     # Houd de main loop draaiende om de asyncio gebeurtenissen te verwerken
     while True:
