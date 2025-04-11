@@ -1,0 +1,10 @@
+[Unit]
+Description=ESPHome to Sunspec ModbusTCP server.
+
+[Service]
+ExecStart=/srv/esphome2sunspec/venv/bin/python /srv/esphome2sunspec/esphome2sunspec.py
+DynamicUser=yes
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

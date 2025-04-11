@@ -1,4 +1,5 @@
 import os
+import socket
 import struct
 import logging
 import asyncio
@@ -206,11 +207,34 @@ class SunspecServer(object):
     def start_modbus_server(self):
         log.info(f"Starting Modbus TCP server on {self.address}:{self.port}, Slave ID: {self.slave_id}")
         try:
-            self.server = modbus_tcp.TcpServer(databank=self.databank, address=self.address, port=self.port)
+            self.server = SystemdTcpServer(databank=self.databank, address=self.address, port=self.port)
             modbus_tk.hooks.install_hook("modbus.Server.before_handle_request", self.modbus_write_hook)
             self.server.start()
         except Exception as e:
             log.error(f"Fout bij starten Modbus server: {e}")
+
+
+class SystemdTcpServer(modbus_tcp.TcpServer):
+    def _do_init(self):
+        """Initialize server using systemd provided socket or fallback to standard binding."""
+        listen_fds = os.environ.get("LISTEN_FDS")
+        if listen_fds and int(listen_fds) >= 1:
+            log.info("Systemd socket descriptor(s) gevonden.")
+            fd = 3
+            try:
+                self._sock = socket.fromfd(fd, socket.AF_INET, socket.SOCK_STREAM)
+                self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                self._sock.setblocking(0)
+                self._sockets.append(self._sock)
+                log.info(f"Server luistert op de door systemd doorgegeven socket (fd={fd}).")
+                return
+            except OSError as e:
+                log.warn(f"Fout bij het gebruiken van de systemd socket descriptor: {e}")
+                log.warn("Fallback naar standaard binding.")
+
+        # Fallback naar de originele _do_init methode van TcpServer
+        super()._do_init()
+
 
 async def main():
     sunspec_server = SunspecServer()

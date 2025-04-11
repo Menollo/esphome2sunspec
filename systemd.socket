@@ -1,0 +1,9 @@
+[Unit]
+Description=ESPHome to Sunspec ModbusTCP server socket.
+
+[Socket]
+ListenStream=502
+Accept=no
+
+[Install]
+WantedBy=sockets.target

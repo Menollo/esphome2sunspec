@@ -14,10 +14,16 @@ en uit te lezen.
 En uiteindelijk ook om deze via zero feedin/ dynamic power limiting
 aan te sturen.
 
+## Instalaltie
 
-## Configuratie:
+Zet het project in /srv/esphome2sunspec:
 
-Maak een file .env met de volgende settings:
+```
+cd /srv/
+git clone https://github.com/Menollo/esphome2sunspec.git
+```
+
+Maak een file (/srv/esphome2sunspec/).env met de voor jouw relevante settings:
 
 ```
 ESP_HOST=192.168.0.100
@@ -28,4 +34,15 @@ ESP_API_ENCRYPTION=
 MANUFACTURER=Sunspec
 MODEL=ESPHome
 POWER_CAPABILITY=1000
+```
+
+Kopieer de systemd files naar /etc/systemd/system
+```
+cp /srv/esphome2sunspec/systemd.service /etc/systemd/system/esphome2sunspec.service
+cp /srv/esphome2sunspec/systemd.socket /etc/systemd/system/esphome2sunspec.socket
+```
+
+start en enable:
+```
+systemctl enable --now esphome2sunspec.socket
 ```
