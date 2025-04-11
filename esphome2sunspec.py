@@ -214,9 +214,8 @@ class SunspecServer(object):
 
 async def main():
     sunspec_server = SunspecServer()
-    await sunspec_server._connect_esphome_internal()
-    sunspec_server.start_modbus_server()
     sunspec_server.esphome_reconnect_task = asyncio.create_task(sunspec_server.manage_esphome_connection())
+    sunspec_server.start_modbus_server()
 
     # Houd de main loop draaiende om de asyncio gebeurtenissen te verwerken
     while True:
