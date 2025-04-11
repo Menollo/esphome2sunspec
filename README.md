@@ -24,7 +24,7 @@ git clone https://github.com/Menollo/esphome2sunspec.git
 ```
 
 maak een virtual environment:
-``
+```
 cd /srv/esphome2sunspec/
 python -m venv venv
 ./venv/bin/pip install -r requirements.txt
