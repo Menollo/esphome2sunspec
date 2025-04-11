@@ -9,12 +9,10 @@ met een ESPHome chipje met deze code:
 
 https://github.com/hn/ginlong-solis/blob/master/solis-modbus-inv.yaml
 
-Het doel is om Victron GX deze omvormer te laten detecteren
-en uit te lezen.
-En uiteindelijk ook om deze via zero feedin/ dynamic power limiting
-aan te sturen.
+Ook zou de zero feed-in / dynamic power limiting implementatie
+vanuit Victron GX (vanaf Venus OS 3.60) moeten werken.
 
-## Instalaltie
+## Installatie
 
 Zet het project in /srv/esphome2sunspec:
 
@@ -30,7 +28,8 @@ python -m venv venv
 ./venv/bin/pip install -r requirements.txt
 ```
 
-Maak een file (/srv/esphome2sunspec/).env met de voor jouw relevante settings:
+Maak een file .env (in /srv/esphome2sunspec/) met de voor jouw relevante settings:
+(Waarbij POWER_CAPABILITY het vermogen van je omvormer is. (1000 is 1kW))
 
 ```
 ESP_HOST=192.168.0.100
