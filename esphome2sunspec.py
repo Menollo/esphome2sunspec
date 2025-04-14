@@ -34,7 +34,6 @@ class SunspecServer(object):
         self._setup_slaves_and_registers()
         self.esphome_services = {}
         self.esphome_client = None
-        self.esphome_connected = False
         self.esphome_reconnect_task = None
         self.esphome_limit_entity_id = None
         self.loop = asyncio.get_event_loop() # Haal de huidige event loop op
@@ -115,19 +114,24 @@ class SunspecServer(object):
             self.esphome_limit_entity_id = [e.key for e in entities[0] if e.object_id == 'limit_output_power'][0]
             self.esphome_services = {entity.key: entity.object_id for entity in entities[0] if hasattr(entity, 'name')}
             self.esphome_client.subscribe_states(self.esphome_state_update)
-            self.esphome_connected = True
             self.update_modbus_register(40108, 4) # State = Running
         except Exception as e:
             log.error(f"Fout bij verbinden met ESPHome: {e}")
-            self.esphome_connected = False
+            if self.esphome_client:
+                log.info(f"Sluit de verbinding naar ESPHome")
+                await self.esphome_client.close()
             self.update_modbus_register(40108, 1) # State = Off
+
 
     async def manage_esphome_connection(self):
         while True:
-            if not self.esphome_connected:
-                log.info("Poging tot verbinden met ESPHome...")
-                await self._connect_esphome_internal()
-            await asyncio.sleep(10) # Controleer de verbinding elke 10 seconden
+            try:
+                if not (self.esphome_client and self.esphome_client._connection):
+                    log.info("Poging tot verbinden met ESPHome...")
+                    await self._connect_esphome_internal()
+                await asyncio.sleep(10) # Controleer de verbinding elke 10 seconden
+            except Exception as e:
+                log.error(f"Fout in ESPHome manager: {e}")
 
     def esphome_state_update(self, state):
         service_name = self.esphome_services.get(state.key)
@@ -193,7 +197,7 @@ class SunspecServer(object):
                         limit_change = True
 
 
-            if limit_change and self.esphome_connected:
+            if limit_change:
                 log.debug(f"Wijziging aan limiet: percentage: {limit_pct}, enabled: {limit_ena}")
                 limit = (limit_pct / 100.0)
                 if limit_ena == 0 or limit_pct >= 10000:
