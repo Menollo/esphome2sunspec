@@ -106,7 +106,7 @@ class SunspecServer(object):
             log.error(f"Fout bij sturen ESPHome commando naar {entity_id}: {e}")
 
     async def _connect_esphome_internal(self):
-        self.esphome_client = APIClient(os.getenv('ESP_HOST'), os.getenv('ESP_PORT'), os.getenv('ESP_API_PASSWORD'), noise_psk=os.getenv('ESP_API_ENCRYPTION'))
+        self.esphome_client = APIClient(os.getenv('ESP_HOST'), int(os.getenv('ESP_PORT')), os.getenv('ESP_API_PASSWORD'), noise_psk=os.getenv('ESP_API_ENCRYPTION'))
         try:
             await self.esphome_client.connect(login=True)
             log.info("Verbonden met ESPHome")
@@ -116,10 +116,10 @@ class SunspecServer(object):
             self.esphome_client.subscribe_states(self.esphome_state_update)
             self.update_modbus_register(40108, 4) # State = Running
         except Exception as e:
-            log.error(f"Fout bij verbinden met ESPHome: {e}")
+            log.info(f"Fout bij verbinden met ESPHome: {e}")
             if self.esphome_client:
                 log.info(f"Sluit de verbinding naar ESPHome")
-                await self.esphome_client.close()
+                await self.esphome_client.disconnect()
             self.update_modbus_register(40108, 1) # State = Off
 
 
@@ -127,7 +127,7 @@ class SunspecServer(object):
         while True:
             try:
                 if not (self.esphome_client and self.esphome_client._connection):
-                    log.info("Poging tot verbinden met ESPHome...")
+                    log.debug("Poging tot verbinden met ESPHome...")
                     await self._connect_esphome_internal()
                 await asyncio.sleep(10) # Controleer de verbinding elke 10 seconden
             except Exception as e:
@@ -135,6 +135,10 @@ class SunspecServer(object):
 
     def esphome_state_update(self, state):
         service_name = self.esphome_services.get(state.key)
+
+        if service_name and type(state.state) not in (int, float):
+            log.debug(f"Ongeldige data ontvangen voor {service_name}: {state.state}")
+            return
 
         if service_name == 'ac_voltage':
             value = int(state.state * 10)
@@ -203,7 +207,11 @@ class SunspecServer(object):
                 if limit_ena == 0 or limit_pct >= 10000:
                     limit = 110.0
 
-                log.info(f"Start taak om percentage van: {limit} % naar ESPHome te sturen")
+                if limit < 100:
+                    log_percentage = log.info
+                else:
+                    log_percentage = log.debug
+                log_percentage(f"Start taak om percentage van: {limit} % naar ESPHome te sturen")
                 # Gebruik loop.create_task om de coroutine in de asyncio event loop te plannen
                 self.loop.create_task(self.send_esphome_command(self.esphome_limit_entity_id, limit))
 
